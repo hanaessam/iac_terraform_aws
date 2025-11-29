@@ -29,3 +29,13 @@ resource "aws_subnet" "private_subnet" {
     Name = "${var.env_name}-private-subnet"
   }
 }
+
+
+# Create an Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.env_name}-igw"
+  }
+}
