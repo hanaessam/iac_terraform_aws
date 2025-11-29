@@ -19,4 +19,5 @@ module "compute" {
 
   vpc_cidr          = var.vpc_cidr
   env_name          = var.env_name
+  
 }
