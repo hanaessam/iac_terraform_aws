@@ -53,23 +53,13 @@ resource "local_file" "bastion_pem" {
   file_permission = "0400"
 }
 
-# Save Bastion Private Key in AWS Secrets Manager
-resource "aws_secretsmanager_secret" "bastion_private_key" {
-  name = "${var.env_name}-bastion-private-key"
-}
-
-resource "aws_secretsmanager_secret_version" "bastion_private_key_version" {
-  secret_id     = aws_secretsmanager_secret.bastion_private_key.id
-  secret_string = tls_private_key.bastion_key.private_key_pem
-}
-
 
 
 
 # Create a Bastion Host in the Public Subnet
 resource "aws_instance" "bastion" {
-  ami                    = "ami-0fa3fe0fa7920f68e"
-  instance_type          = "t2.micro"
+  ami                    = var.ami
+  instance_type          = var.instance_type
 
   subnet_id              = var.public_subnet_id
   vpc_security_group_ids = [var.public_sg_id]
@@ -84,8 +74,8 @@ resource "aws_instance" "bastion" {
 
 # Application EC2 in Private Subnet
 resource "aws_instance" "app" {
-  ami           = "ami-0fa3fe0fa7920f68e" 
-  instance_type = "t2.micro"
+  ami           = var.ami
+  instance_type = var.instance_type
 
   subnet_id              = var.private_subnet_id
   vpc_security_group_ids = [aws_security_group.private_sg.id]

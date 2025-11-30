@@ -8,28 +8,47 @@ resource "aws_vpc" "main" {
 }
 
 # Create a public subnet
-resource "aws_subnet" "public_subnet" {
+resource "aws_subnet" "public_subnet1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = var.az
+  cidr_block              = var.public_subnet1_cidr
+  availability_zone       = "${var.region}a"
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.env_name}-public-subnet"
+    Name = "${var.env_name}-public-subnet1"
   }
 }
 
-# Create a private subnet
-resource "aws_subnet" "private_subnet" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr
-  availability_zone = var.az
+resource "aws_subnet" "public_subnet2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet2_cidr
+  availability_zone       = "${var.region}b"
+  map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.env_name}-private-subnet"
+    Name = "${var.env_name}-public-subnet2"
+  }
+}
+# Create a private subnet
+resource "aws_subnet" "private_subnet1" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet1_cidr
+  availability_zone = "${var.region}a"
+
+  tags = {
+    Name = "${var.env_name}-private-subnet1"
   }
 }
 
+resource "aws_subnet" "private_subnet2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet2_cidr
+  availability_zone = "${var.region}b"
+
+  tags = {
+    Name = "${var.env_name}-private-subnet2"
+  }
+}
 
 # Create an Internet Gateway
 resource "aws_internet_gateway" "igw" {
@@ -54,7 +73,7 @@ resource "aws_eip" "nat_eip" {
 # Create NAT Gateway in public subnet
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public_subnet.id
+  subnet_id     = aws_subnet.public_subnet1.id
 
   tags = {
     Name = "${var.env_name}-nat-gateway"
@@ -98,17 +117,27 @@ resource "aws_route" "private_route" {
 
 
 # Associate public route table with public subnet
-resource "aws_route_table_association" "public_assoc" {
-  subnet_id      = aws_subnet.public_subnet.id
+resource "aws_route_table_association" "public_assoc1" {
+  subnet_id      = aws_subnet.public_subnet1.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_route_table_association" "public_assoc2" {
+  subnet_id      = aws_subnet.public_subnet2.id
   route_table_id = aws_route_table.public_rt.id
 }
 
 
 # Associate private route table with private subnet
-resource "aws_route_table_association" "private_assoc" {
-  subnet_id      = aws_subnet.private_subnet.id
+resource "aws_route_table_association" "private_assoc1" {
+  subnet_id      = aws_subnet.private_subnet1.id
   route_table_id = aws_route_table.private_rt.id
 }
+resource "aws_route_table_association" "private_assoc2" {
+  subnet_id      = aws_subnet.private_subnet2.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
 
 
 # Security Group: Allow SSH from anywhere
