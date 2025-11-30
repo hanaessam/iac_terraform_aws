@@ -8,3 +8,8 @@ output "bastion_public_ip" {
 output "app_private_ip" {
   value = aws_instance.app.private_ip
 }
+
+output "bastion_key_path" {
+  description = "Local path to the bastion SSH private key"
+  value       = local_file.bastion_pem.filename
+}

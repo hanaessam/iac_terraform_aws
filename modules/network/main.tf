@@ -40,6 +40,29 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
+# Create an Elastic IP for NAT Gateway
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.env_name}-nat-eip"
+  }
+
+  depends_on = [aws_internet_gateway.igw]
+}
+
+# Create NAT Gateway in public subnet
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public_subnet.id
+
+  tags = {
+    Name = "${var.env_name}-nat-gateway"
+  }
+
+  depends_on = [aws_internet_gateway.igw]
+}
+
 
 # Create a public route table
 resource "aws_route_table" "public_rt" {
@@ -64,6 +87,13 @@ resource "aws_route" "public_route" {
   route_table_id         = aws_route_table.public_rt.id
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.igw.id
+}
+
+# Create a private route to NAT Gateway
+resource "aws_route" "private_route" {
+  route_table_id         = aws_route_table.private_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat.id
 }
 
 
