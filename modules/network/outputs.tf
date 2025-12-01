@@ -1,45 +1,20 @@
 output "vpc_id" {
-  value = aws_vpc.main.id
+  value = module.vpc.vpc_id
 }
 
-output "public_subnet_id1" {
-  value = aws_subnet.public_subnet1.id
+output "vpc_cidr" {
+  value = module.vpc.vpc_cidr
 }
 
-output "private_subnet_id1" {
-  value = aws_subnet.private_subnet1.id
+output "public_subnet_ids" {
+  value = module.subnets.public_subnet_ids
 }
 
-output "public_subnet_id2" {
-  value = aws_subnet.public_subnet2.id
-
-}
-
-output "private_subnet_id2" {
-  value = aws_subnet.private_subnet2.id
-}
-
-
-output "igw_id" {
-  value = aws_internet_gateway.igw.id
-}
-
-output "public_route_table_id" {
-  value = aws_route_table.public_rt.id
-}
-
-output "private_route_table_id" {
-  value = aws_route_table.private_rt.id
-}
-
-output "public_sg_id" {
-  value = aws_security_group.public_sg.id
-}
-
-output "nat_gateway_id" {
-  value = aws_nat_gateway.nat.id
+output "private_subnet_ids" {
+  value = module.subnets.private_subnet_ids
 }
 
 output "nat_eip" {
-  value = aws_eip.nat_eip.public_ip
+  value = module.nat.nat_eip
 }
+

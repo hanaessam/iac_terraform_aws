@@ -1,167 +1,71 @@
-# Create a VPC 
-resource "aws_vpc" "main" {
-  cidr_block = var.vpc_cidr
-
-  tags = {
-    Name = "${var.env_name}-vpc"
-  }
+module "vpc" {
+  source   = "./vpc"
+  region   = var.region
+  vpc_cidr = var.vpc_cidr
+  env_name = var.env_name
 }
 
-# Create a public subnet
-resource "aws_subnet" "public_subnet1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet1_cidr
-  availability_zone       = "${var.region}a"
-  map_public_ip_on_launch = true
+# Create public subnets
+module "subnets" {
+  source   = "./subnet"
+  vpc_id   = module.vpc.vpc_id
+  region   = var.region
+  env_name = var.env_name
+  public_subnet_cidrs = [
+    var.public_subnet1_cidr,
+    var.public_subnet2_cidr
+  ]
 
-  tags = {
-    Name = "${var.env_name}-public-subnet1"
-  }
-}
-
-resource "aws_subnet" "public_subnet2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet2_cidr
-  availability_zone       = "${var.region}b"
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "${var.env_name}-public-subnet2"
-  }
-}
-# Create a private subnet
-resource "aws_subnet" "private_subnet1" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet1_cidr
-  availability_zone = "${var.region}a"
-
-  tags = {
-    Name = "${var.env_name}-private-subnet1"
-  }
-}
-
-resource "aws_subnet" "private_subnet2" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet2_cidr
-  availability_zone = "${var.region}b"
-
-  tags = {
-    Name = "${var.env_name}-private-subnet2"
-  }
+  private_subnet_cidrs = [
+    var.private_subnet1_cidr,
+    var.private_subnet2_cidr
+  ]
 }
 
 # Create an Internet Gateway
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.env_name}-igw"
-  }
+module "igw" {
+  source   = "./igw"
+  vpc_id   = module.vpc.vpc_id
+  env_name = var.env_name
 }
 
-# Create an Elastic IP for NAT Gateway
-resource "aws_eip" "nat_eip" {
-  domain = "vpc"
-
-  tags = {
-    Name = "${var.env_name}-nat-eip"
-  }
-
-  depends_on = [aws_internet_gateway.igw]
-}
-
-# Create NAT Gateway in public subnet
-resource "aws_nat_gateway" "nat" {
-  allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public_subnet1.id
-
-  tags = {
-    Name = "${var.env_name}-nat-gateway"
-  }
-
-  depends_on = [aws_internet_gateway.igw]
+# Create NAT Gateway in first public subnet
+module "nat" {
+  source    = "./nat"
+  env_name  = var.env_name
+  subnet_id = module.subnets.public_subnet_ids[0]
 }
 
 
 # Create a public route table
-resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.main.id
+module "public_rt" {
+  source           = "./route_table"
+  vpc_id           = module.vpc.vpc_id
+  env_name         = var.env_name
+  route_table_name = "public"
+  gateway_id       = module.igw.igw_id
 
-  tags = {
-    Name = "${var.env_name}-public-rt"
-  }
 }
 
 # Create a private route table
-resource "aws_route_table" "private_rt" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.env_name}-private-rt"
-  }
+module "private_rt" {
+  source           = "./route_table"
+  vpc_id           = module.vpc.vpc_id
+  env_name         = var.env_name
+  route_table_name = "private"
+  gateway_id       = module.nat.nat_gateway_id
 }
 
-# Create a public route to the Internet
-resource "aws_route" "public_route" {
-  route_table_id         = aws_route_table.public_rt.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.igw.id
+# Associate route table with subnets
+module "public_assoc" {
+  source         = "./route_table_assoc"
+  subnet_ids     = module.subnets.public_subnet_ids
+  route_table_id = module.public_rt.route_table_id
 }
 
-# Create a private route to NAT Gateway
-resource "aws_route" "private_route" {
-  route_table_id         = aws_route_table.private_rt.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat.id
+module "private_assoc" {
+  source         = "./route_table_assoc"
+  subnet_ids     = module.subnets.private_subnet_ids
+  route_table_id = module.private_rt.route_table_id
 }
 
-
-# Associate public route table with public subnet
-resource "aws_route_table_association" "public_assoc1" {
-  subnet_id      = aws_subnet.public_subnet1.id
-  route_table_id = aws_route_table.public_rt.id
-}
-
-resource "aws_route_table_association" "public_assoc2" {
-  subnet_id      = aws_subnet.public_subnet2.id
-  route_table_id = aws_route_table.public_rt.id
-}
-
-
-# Associate private route table with private subnet
-resource "aws_route_table_association" "private_assoc1" {
-  subnet_id      = aws_subnet.private_subnet1.id
-  route_table_id = aws_route_table.private_rt.id
-}
-resource "aws_route_table_association" "private_assoc2" {
-  subnet_id      = aws_subnet.private_subnet2.id
-  route_table_id = aws_route_table.private_rt.id
-}
-
-
-
-# Security Group: Allow SSH from anywhere
-resource "aws_security_group" "public_sg" {
-  name        = "${var.env_name}-public-sg"
-  description = "Allow SSH from anywhere"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.env_name}-public-sg"
-  }
-}

@@ -2,16 +2,24 @@ variable "env_name" {
   type = string
 }
 
-variable "vpc_id" { type = string }
-variable "public_sg_id" { type = string }
-variable "vpc_cidr" { type = string }
-
-variable "public_subnet_id" {
-  type = string
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID from network module"
 }
 
-variable "private_subnet_id" {
-  type = string
+variable "vpc_cidr" {
+  type        = string
+  description = "VPC CIDR from network module"
+}
+
+variable "public_subnet_ids" {
+  type        = list(string)
+  description = "List of public subnet IDs from network module"
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "List of private subnet IDs from network module"
 }
 
 variable "ami" {

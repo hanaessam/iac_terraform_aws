@@ -14,9 +14,13 @@ This project implements a secure, scalable AWS infrastructure using Terraform In
 
 #### VPC Configuration
 - **VPC CIDR Block**: 10.0.0.0/16
-- **Public Subnet**: 10.0.1.0/24
-- **Private Subnet**: 10.0.2.0/24
-- **Availability Zone**: us-east-1a (configurable per environment)
+- **Public Subnets**: 
+  - 10.0.1.0/24 (us-east-1a)
+  - 10.0.3.0/24 (us-east-1b)
+- **Private Subnets**: 
+  - 10.0.2.0/24 (us-east-1a)
+  - 10.0.4.0/24 (us-east-1b)
+- **Multi-AZ Deployment**: Resources deployed across two availability zones for high availability
 
 #### Internet Connectivity
 - **Internet Gateway**: Provides internet access for resources in public subnet
@@ -81,13 +85,22 @@ iac_terraform_aws/
 ├── backend.tf                   # S3 backend configuration
 ├── modules/
 │   ├── network/
-│   │   ├── main.tf             # VPC, subnets, IGW, NAT, route tables
+│   │   ├── main.tf             # Network orchestration
 │   │   ├── variables.tf        # Network module variables
-│   │   └── outputs.tf          # Network module outputs
+│   │   ├── outputs.tf          # Network module outputs
+│   │   ├── vpc/                # VPC submodule
+│   │   ├── subnet/             # Subnet submodule (creates public and private)
+│   │   ├── igw/                # Internet Gateway submodule
+│   │   ├── nat/                # NAT Gateway submodule
+│   │   ├── route_table/        # Route table submodule
+│   │   └── route_table_assoc/  # Route table association submodule
 │   └── compute/
-│       ├── main.tf             # EC2 instances, security groups, key pairs
+│       ├── main.tf             # Compute orchestration
 │       ├── variables.tf        # Compute module variables
-│       └── outputs.tf          # Compute module outputs
+│       ├── outputs.tf          # Compute module outputs
+│       ├── ec2/                # EC2 instance submodule
+│       ├── sg/                 # Security group submodule
+│       └── key_pair/           # SSH key pair submodule
 ├── env/
 │   ├── dev.tfvars              # Development environment variables
 │   ├── prod.tfvars             # Production environment variables
@@ -107,14 +120,15 @@ iac_terraform_aws/
 Each environment requires the following variables (see `env/example.tfvars`):
 
 ```hcl
-region              = "us-east-1"
-vpc_cidr            = "10.0.0.0/16"
-env_name            = "dev"
-public_subnet_cidr  = "10.0.1.0/24"
-private_subnet_cidr = "10.0.2.0/24"
-az                  = "us-east-1a"
-ami                 = "ami-0fa3fe0fa7920f68e"
-instance_type       = "t2.micro"
+region               = "us-east-1"
+vpc_cidr             = "10.0.0.0/16"
+env_name             = "dev"
+public_subnet1_cidr  = "10.0.1.0/24"
+public_subnet2_cidr  = "10.0.3.0/24"
+private_subnet1_cidr = "10.0.2.0/24"
+private_subnet2_cidr = "10.0.4.0/24"
+ami                  = "ami-0fa3fe0fa7920f68e"
+instance_type        = "t2.micro"
 ```
 
 ## Deployment Instructions
@@ -157,17 +171,34 @@ Expected outputs:
 - `vpc_id`: VPC identifier
 - `nat_gateway_ip`: Elastic IP of NAT Gateway
 - `bastion_ssh_key_path`: Local path to SSH private key
-- `ssh_connection_command`: Command to connect to bastion
+- `ssh_connection_command`: Ready-to-use command to connect to bastion
+
+Example output:
+```
+app_private_ip         = "10.0.2.69"
+bastion_public_ip      = "54.234.109.13"
+bastion_ssh_key_path   = "modules/compute/key_pair/dev_bastion_key.pem"
+nat_gateway_ip         = "44.205.27.168"
+ssh_connection_command = "ssh -i modules/compute/key_pair/dev_bastion_key.pem ec2-user@54.234.109.13"
+vpc_id                 = "vpc-0c47d8f063e107055"
+```
 
 
 ## Accessing the Infrastructure
 
 ### Connect to Bastion Host
 
+Use the SSH connection command from terraform output:
+
 ```bash
-ssh -i modules/compute/dev_bastion_key.pem ec2-user@<bastion_public_ip>
+ssh -i modules/compute/key_pair/dev_bastion_key.pem ec2-user@<bastion_public_ip>
 ```
 
+Or copy the exact command from terraform output:
+
+```bash
+terraform output -raw ssh_connection_command | bash
+```
 
 ### Connect to Application Server (via Bastion)
 
@@ -175,6 +206,11 @@ From the bastion host:
 
 ```bash
 ssh ec2-user@<app_private_ip>
+```
+
+Example:
+```bash
+[ec2-user@ip-10-0-1-211 ~]$ ssh ec2-user@10.0.2.69
 ```
 
 ## AWS Console Verification
@@ -261,10 +297,31 @@ terraform destroy -var-file=env/dev.tfvars
 - Ensure only one user applies Terraform at a time
 - Use `-lock=false` flag only if necessary (not recommended for production)
 
+## Recent Updates
+
+### December 2025
+- ✅ **Multi-AZ Deployment**: Infrastructure now deployed across two availability zones (us-east-1a and us-east-1b)
+- ✅ **Dual Subnet Architecture**: Implemented 2 public and 2 private subnets for high availability
+- ✅ **Modular Architecture**: Refactored to use nested submodules for better code organization
+- ✅ **Enhanced Outputs**: Added comprehensive outputs including ready-to-use SSH commands
+- ✅ **Module Data Flow**: Proper data passing between network and compute modules via root module
+- ✅ **NAT Gateway Integration**: NAT Gateway successfully connected to first public subnet
+
+### Infrastructure Deployment Summary
+Total resources deployed: **23 AWS resources**
+- 1 VPC
+- 4 Subnets (2 public, 2 private across 2 AZs)
+- 1 Internet Gateway
+- 1 NAT Gateway with Elastic IP
+- 2 Route Tables (public and private)
+- 4 Route Table Associations
+- 2 Security Groups (public and private)
+- 2 EC2 Instances (bastion and application)
+- 1 SSH Key Pair with local PEM file
+
 ## Future Enhancements
 
-1. **Multi-AZ Deployment**: Deploy resources across multiple availability zones for high availability
-2. **Auto Scaling**: Implement Auto Scaling Groups for application servers
+1. **Auto Scaling**: Implement Auto Scaling Groups for application servers
 3. **Load Balancer**: Add Application Load Balancer for distributing traffic
 4. **RDS Database**: Provision managed database in private subnet
 5. **ElastiCache**: Add Redis/Memcached for application caching
@@ -300,4 +357,7 @@ Hana Essam
 
 ---
 
-**Last Updated**: November 30, 2025
+**Last Updated**: December 1, 2025  
+**Infrastructure Status**: ✅ Deployed and Verified  
+**Total Resources**: 23 AWS resources  
+**Deployment Time**: ~3 minutes

@@ -10,16 +10,12 @@ module "network" {
 }
 
 module "compute" {
-  source = "./modules/compute"
-
-  vpc_id            = module.network.vpc_id
-  public_subnet_id  = module.network.public_subnet_id1
-  private_subnet_id = module.network.private_subnet_id1
-  public_sg_id      = module.network.public_sg_id
-
-  vpc_cidr = var.vpc_cidr
-  env_name = var.env_name
-
-  ami           = var.ami
-  instance_type = var.instance_type
+  source             = "./modules/compute"
+  env_name           = var.env_name
+  ami                = var.ami
+  instance_type      = var.instance_type
+  vpc_id             = module.network.vpc_id
+  vpc_cidr           = module.network.vpc_cidr
+  public_subnet_ids  = module.network.public_subnet_ids
+  private_subnet_ids = module.network.private_subnet_ids
 }
